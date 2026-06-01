@@ -84,6 +84,6 @@ class ProfileSetupViewModel(
     }
 
     private companion object {
-        const val FIREBASE_TIMEOUT_MS = 15_000L
+        const val FIREBASE_TIMEOUT_MS = 60_000L
     }
 }
