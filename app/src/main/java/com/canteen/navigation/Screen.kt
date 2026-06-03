@@ -4,6 +4,7 @@ import android.net.Uri
 import com.canteen.domain.model.UserRole
 
 sealed class Screen(val route: String) {
+    data object Splash : Screen("splash")
     data object RoleSelection : Screen("role_selection")
     data object Auth : Screen("auth/{role}") {
         const val roleArg = "role"

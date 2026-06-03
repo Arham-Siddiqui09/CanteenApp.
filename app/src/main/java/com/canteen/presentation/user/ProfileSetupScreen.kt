@@ -30,6 +30,7 @@ fun ProfileSetupScreen(
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onCompleted()
+            viewModel.onNavigationHandled()
         }
     }
 

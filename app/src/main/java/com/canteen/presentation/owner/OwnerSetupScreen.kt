@@ -30,6 +30,7 @@ fun OwnerSetupScreen(
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onCompleted()
+            viewModel.onNavigationHandled()
         }
     }
 

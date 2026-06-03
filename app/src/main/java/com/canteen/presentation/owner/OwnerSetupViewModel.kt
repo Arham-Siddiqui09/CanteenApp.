@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 class OwnerSetupViewModel(
     getCollegesUseCase: GetCollegesUseCase,
@@ -32,6 +31,10 @@ class OwnerSetupViewModel(
 
     fun onCollegeChange(college: String) {
         _uiState.value = _uiState.value.copy(college = college, error = null)
+    }
+
+    fun onNavigationHandled() {
+        _uiState.value = _uiState.value.copy(isSaved = false)
     }
 
     fun save() {
@@ -59,37 +62,21 @@ class OwnerSetupViewModel(
                 college = state.college
             )
 
-            val saveResult = runCatching {
-                withTimeout(FIREBASE_TIMEOUT_MS) {
-                    saveCanteenUseCase(canteen)
-                }
-            }
-
-            _uiState.value = saveResult.fold(
-                onSuccess = { result ->
-                    result.fold(
-                        onSuccess = {
-                            _uiState.value.copy(isLoading = false, isSaved = true)
-                        },
-                        onFailure = { exception ->
-                            _uiState.value.copy(
-                                isLoading = false,
-                                error = exception.message ?: "Could not save canteen"
-                            )
-                        }
+            saveCanteenUseCase(canteen).fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isSaved = true,
+                        error = null
                     )
                 },
                 onFailure = { exception ->
-                    _uiState.value.copy(
+                    _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = exception.message ?: "Saving canteen took too long. Check internet and Firestore rules."
+                        error = exception.message ?: "Could not save canteen"
                     )
                 }
             )
         }
-    }
-
-    private companion object {
-        const val FIREBASE_TIMEOUT_MS = 15_000L
     }
 }

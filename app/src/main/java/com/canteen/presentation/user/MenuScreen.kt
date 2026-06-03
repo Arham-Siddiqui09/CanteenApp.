@@ -15,8 +15,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import com.canteen.presentation.common.CanteenTopBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,9 +32,11 @@ import com.canteen.presentation.common.LoadingView
 import com.canteen.presentation.common.PrimaryActionButton
 import com.canteen.utils.toRupeesText
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuScreen(
     viewModel: MenuViewModel,
+    onBack: () -> Unit,
     onOrderPlaced: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -44,6 +48,12 @@ fun MenuScreen(
     }
 
     Scaffold(
+        topBar = {
+            CanteenTopBar(
+                title = uiState.canteenName,
+                onBack = onBack
+            )
+        },
         bottomBar = {
             if (uiState.cartCount > 0) {
                 CartBar(
@@ -63,10 +73,6 @@ fun MenuScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Text(
-                    text = uiState.canteenName,
-                    style = MaterialTheme.typography.headlineMedium
-                )
                 Text(
                     text = "Choose items for pickup",
                     style = MaterialTheme.typography.bodyMedium,

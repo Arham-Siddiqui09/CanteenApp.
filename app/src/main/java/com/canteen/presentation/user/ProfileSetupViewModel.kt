@@ -3,13 +3,13 @@ package com.canteen.presentation.user
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canteen.domain.model.UserProfile
+import com.canteen.domain.model.UserRole
 import com.canteen.domain.usecase.GetCollegesUseCase
 import com.canteen.domain.usecase.SaveUserProfileUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 class ProfileSetupViewModel(
     getCollegesUseCase: GetCollegesUseCase,
@@ -28,6 +28,10 @@ class ProfileSetupViewModel(
 
     fun onCollegeChange(college: String) {
         _uiState.value = _uiState.value.copy(college = college, error = null)
+    }
+
+    fun onNavigationHandled() {
+        _uiState.value = _uiState.value.copy(isSaved = false)
     }
 
     fun save() {
@@ -50,40 +54,25 @@ class ProfileSetupViewModel(
             val profile = UserProfile(
                 userId = requireNotNull(userId),
                 name = state.name.trim(),
-                college = state.college
+                college = state.college,
+                role = UserRole.USER
             )
 
-            val saveResult = runCatching {
-                withTimeout(FIREBASE_TIMEOUT_MS) {
-                    saveUserProfileUseCase(profile)
-                }
-            }
-
-            _uiState.value = saveResult.fold(
-                onSuccess = { result ->
-                    result.fold(
-                        onSuccess = {
-                            _uiState.value.copy(isLoading = false, isSaved = true)
-                        },
-                        onFailure = { exception ->
-                            _uiState.value.copy(
-                                isLoading = false,
-                                error = exception.message ?: "Could not save profile"
-                            )
-                        }
+            saveUserProfileUseCase(profile).fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isSaved = true,
+                        error = null
                     )
                 },
                 onFailure = { exception ->
-                    _uiState.value.copy(
+                    _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = exception.message ?: "Saving profile took too long. Check internet and Firestore rules."
+                        error = exception.message ?: "Could not save profile"
                     )
                 }
             )
         }
-    }
-
-    private companion object {
-        const val FIREBASE_TIMEOUT_MS = 15_000L
     }
 }

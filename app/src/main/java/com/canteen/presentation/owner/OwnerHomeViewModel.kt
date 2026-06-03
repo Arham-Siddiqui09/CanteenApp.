@@ -58,12 +58,14 @@ class OwnerHomeViewModel(
             }
 
             val menuItems = getMenuItemsUseCase(canteen.id).getOrElse { emptyList() }
-            val orders = getCanteenOrdersUseCase(canteen.id).getOrElse { emptyList() }
+            val ordersResult = getCanteenOrdersUseCase(canteen.id)
+            val orders = ordersResult.getOrElse { emptyList() }
             _uiState.value = OwnerHomeUiState(
                 canteen = canteen,
                 menuItems = menuItems,
                 orders = orders,
-                isLoading = false
+                isLoading = false,
+                error = ordersResult.exceptionOrNull()?.message
             )
         }
     }
@@ -129,8 +131,9 @@ class OwnerHomeViewModel(
 
             saveMenuItemUseCase(item).fold(
                 onSuccess = {
+                    _uiState.value = _uiState.value.copy(isSavingItem = false)
                     clearItemForm()
-                    load()
+                    refreshMenuItems()
                 },
                 onFailure = { exception ->
                     _uiState.value = _uiState.value.copy(
@@ -146,7 +149,16 @@ class OwnerHomeViewModel(
         val canteenId = _uiState.value.canteen?.id ?: return
         viewModelScope.launch {
             deleteMenuItemUseCase(canteenId, itemId)
-            load()
+            refreshMenuItems()
+        }
+    }
+
+    private fun refreshMenuItems() {
+        val canteenId = _uiState.value.canteen?.id ?: return
+        viewModelScope.launch {
+            getMenuItemsUseCase(canteenId).onSuccess { items ->
+                _uiState.value = _uiState.value.copy(menuItems = items, error = null)
+            }
         }
     }
 
@@ -161,7 +173,30 @@ class OwnerHomeViewModel(
 
         viewModelScope.launch {
             updateOrderStatusUseCase(orderId, nextStatus)
-            load()
+            refreshOrders()
+        }
+    }
+
+    private fun refreshOrders() {
+        val canteenId = _uiState.value.canteen?.id ?: return
+        viewModelScope.launch {
+            getCanteenOrdersUseCase(canteenId).fold(
+                onSuccess = { orders ->
+                    _uiState.value = _uiState.value.copy(
+                        orders = orders,
+                        error = if (orders.isEmpty()) {
+                            "No orders yet. Ask student to place order, then tap Refresh."
+                        } else {
+                            null
+                        }
+                    )
+                },
+                onFailure = { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        error = exception.message ?: "Could not load orders from cloud."
+                    )
+                }
+            )
         }
     }
 

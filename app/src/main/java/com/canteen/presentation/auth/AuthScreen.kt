@@ -27,14 +27,14 @@ import com.canteen.presentation.common.PrimaryActionButton
 fun AuthScreen(
     role: UserRole,
     viewModel: AuthViewModel,
-    onAuthenticated: (UserRole) -> Unit
+    onAuthenticated: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(uiState.isAuthenticated) {
         if (uiState.isAuthenticated) {
             viewModel.consumeAuthenticated()
-            onAuthenticated(role)
+            onAuthenticated()
         }
     }
 
@@ -94,14 +94,6 @@ fun AuthScreen(
                 isPassword = true,
                 keyboardType = KeyboardType.Password,
                 modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Phone OTP can plug into this same screen as another auth method later.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(24.dp))

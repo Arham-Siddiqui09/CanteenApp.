@@ -2,7 +2,10 @@ package com.canteen.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -12,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.canteen.di.AppContainer
+import com.canteen.domain.model.AppDestination
 import com.canteen.domain.model.UserRole
 import com.canteen.presentation.auth.AuthScreen
 import com.canteen.presentation.auth.AuthViewModel
@@ -21,6 +25,8 @@ import com.canteen.presentation.owner.OwnerHomeScreen
 import com.canteen.presentation.owner.OwnerHomeViewModel
 import com.canteen.presentation.owner.OwnerSetupScreen
 import com.canteen.presentation.owner.OwnerSetupViewModel
+import com.canteen.presentation.session.SplashScreen
+import com.canteen.presentation.session.SplashViewModel
 import com.canteen.presentation.user.MenuScreen
 import com.canteen.presentation.user.MenuViewModel
 import com.canteen.presentation.user.ProfileSetupScreen
@@ -29,22 +35,48 @@ import com.canteen.presentation.user.UserHomeScreen
 import com.canteen.presentation.user.UserHomeViewModel
 import com.canteen.presentation.user.UserOrdersScreen
 import com.canteen.presentation.user.UserOrdersViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
-    val appContainer = remember { AppContainer() }
+    val context = LocalContext.current
+    val appContainer = remember { AppContainer(context.applicationContext) }
     val roleViewModel: RoleViewModel = viewModel()
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(appContainer) {
+        if (appContainer.currentUserId() != null) {
+            appContainer.registerFcmTokenUseCase()
+        }
+    }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.RoleSelection.route
+        startDestination = Screen.Splash.route
     ) {
+        composable(Screen.Splash.route) {
+            val splashViewModel: SplashViewModel = viewModel(
+                factory = viewModelFactory {
+                    SplashViewModel(resolveAppStartUseCase = appContainer.resolveAppStartUseCase)
+                }
+            )
+
+            SplashScreen(
+                viewModel = splashViewModel,
+                onDestinationResolved = { destination ->
+                    navController.navigate(destination.toRoute()) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
 
         composable(Screen.RoleSelection.route) {
             RoleSelectionScreen(
                 viewModel = roleViewModel,
                 onContinue = { role ->
+                    appContainer.saveSelectedRole(role)
                     navController.navigate(Screen.Auth.createRoute(role))
                 }
             )
@@ -70,14 +102,13 @@ fun AppNavGraph() {
             AuthScreen(
                 role = role,
                 viewModel = authViewModel,
-                onAuthenticated = { authenticatedRole ->
-                    val nextRoute = if (authenticatedRole == UserRole.USER) {
-                        Screen.ProfileSetup.route
-                    } else {
-                        Screen.OwnerSetup.route
-                    }
-                    navController.navigate(nextRoute) {
-                        popUpTo(Screen.RoleSelection.route)
+                onAuthenticated = {
+                    appContainer.registerFcmTokenUseCase()
+                    scope.launch {
+                        val destination = appContainer.resolveAppStartUseCase(role)
+                        navController.navigate(destination.toRoute()) {
+                            popUpTo(Screen.RoleSelection.route)
+                        }
                     }
                 }
             )
@@ -97,6 +128,7 @@ fun AppNavGraph() {
             ProfileSetupScreen(
                 viewModel = profileSetupViewModel,
                 onCompleted = {
+                    appContainer.registerFcmTokenUseCase()
                     navController.navigate(Screen.UserHome.route) {
                         popUpTo(Screen.RoleSelection.route) { inclusive = true }
                     }
@@ -118,6 +150,7 @@ fun AppNavGraph() {
             OwnerSetupScreen(
                 viewModel = ownerSetupViewModel,
                 onCompleted = {
+                    appContainer.registerFcmTokenUseCase()
                     navController.navigate(Screen.OwnerHome.route) {
                         popUpTo(Screen.RoleSelection.route) { inclusive = true }
                     }
@@ -146,6 +179,12 @@ fun AppNavGraph() {
                 },
                 onOpenOrders = {
                     navController.navigate(Screen.UserOrders.route)
+                },
+                onLogout = {
+                    appContainer.logoutUseCase()
+                    navController.navigate(Screen.RoleSelection.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
@@ -179,6 +218,7 @@ fun AppNavGraph() {
 
             MenuScreen(
                 viewModel = menuViewModel,
+                onBack = { navController.popBackStack() },
                 onOrderPlaced = {
                     navController.navigate(Screen.UserOrders.route) {
                         popUpTo(Screen.UserHome.route)
@@ -197,7 +237,10 @@ fun AppNavGraph() {
                 }
             )
 
-            UserOrdersScreen(viewModel = userOrdersViewModel)
+            UserOrdersScreen(
+                viewModel = userOrdersViewModel,
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(Screen.OwnerHome.route) {
@@ -215,10 +258,27 @@ fun AppNavGraph() {
                 }
             )
 
-            OwnerHomeScreen(viewModel = ownerHomeViewModel)
+            OwnerHomeScreen(
+                viewModel = ownerHomeViewModel,
+                onLogout = {
+                    appContainer.logoutUseCase()
+                    navController.navigate(Screen.RoleSelection.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }
+
+private fun AppDestination.toRoute(): String =
+    when (this) {
+        AppDestination.RoleSelection -> Screen.RoleSelection.route
+        AppDestination.ProfileSetup -> Screen.ProfileSetup.route
+        AppDestination.OwnerSetup -> Screen.OwnerSetup.route
+        AppDestination.UserHome -> Screen.UserHome.route
+        AppDestination.OwnerHome -> Screen.OwnerHome.route
+    }
 
 private inline fun <reified T : ViewModel> viewModelFactory(
     crossinline creator: () -> T
